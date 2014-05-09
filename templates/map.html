@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Green flask map</title>
+    <!--<link rel="stylesheet" href="http://www.openlayers.org/dev/theme/default/style.css" type="text/css">-->
+    <style>
+        html, body, #map {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #headline {
+            position: fixed;
+            bottom: 1em;
+            left: 1em;
+            width: 512px;
+            z-index: 20000;
+            background-color: white;
+            padding: 0 0.5em 0.5em 0.5em;
+        }
+    </style>
+    <script src="http://www.openlayers.org/dev/OpenLayers.js"></script>
+    <script type="text/javascript">
+            var lon = 7.9555;
+            var lat = 47.965;
+            var zoom = 15;
+            var ll = new OpenLayers.Projection("EPSG:4326");
+            var merc = new OpenLayers.Projection("EPSG:900913");
+            var map, layer;
+            var saveStrategy = new OpenLayers.Strategy.Save();
+            var xmlhttp = new OpenLayers.Request.XMLHttpRequest();
+            var geojson_format = new OpenLayers.Format.GeoJSON();
+
+            function init(){
+                layer = new OpenLayers.Layer.OSM( "OpenLayers");
+                vlayer = new OpenLayers.Layer.Vector( "Editable", {
+                    projection: merc,
+                    strategies: [new OpenLayers.Strategy.Fixed(), saveStrategy],
+                    protocol:  new OpenLayers.Protocol.HTTP({
+                        url: "/areas",
+                        format: new OpenLayers.Format.GeoJSON(),
+                        update: function(feature) {
+                            console.log('update triggered.');
+                            console.log(feature);
+                            xmlhttp.open('POST', '/area/edit/'+feature.id, false);
+                            xmlhttp.send(feature);
+                            if(xmlhttp.status == 200) {
+                                console.log('ok')
+                            };
+                        },
+                        delete: function(feature) {
+                            console.log('delete triggered.');
+                            console.log(geojson_format.write(feature));
+                        //                           xmlhttp.open('GET', '/test/dtp_pg_query.php?level=2&osm_id='+feature.attributes.osm_id,false);
+                        //                         xmlhttp.send(null);
+                        //                           if(xmlhttp.status == 200) {
+                        //                                                      Ext.Msg.alert('Статус удаления',xmlhttp.responseText);
+                        //                           };
+                        },
+                        create: function(feature) {
+                            console.log('create triggered.');
+                            console.log(feature);
+                            console.log(geojson_format.write(feature));
+                            xmlhttp.open('POST', '/area/add', false);
+                            xmlhttp.send(geojson_format.write(feature));
+                            if(xmlhttp.status == 200) {
+                                console.log('ok');
+                                vfeatures = geojson_format.read(xmlhttp.responseText);
+                                vlayer.removeAllFeatures();
+                                vlayer.addFeatures(vfeatures); 
+                            };
+                        }
+                    })
+                });
+                
+                map = new OpenLayers.Map( 'map', {
+                    displayProjection: ll,
+                    controls: [
+                        new OpenLayers.Control.PanZoom(),
+                        new OpenLayers.Control.MousePosition()
+                    ]
+                });
+                map.addLayers([layer, vlayer]);
+                
+                var panel = new OpenLayers.Control.Panel({
+                    displayClass: 'olControlEditingToolbar'
+                });
+                var draw = new OpenLayers.Control.DrawFeature(
+                    vlayer, OpenLayers.Handler.Polygon,
+                    {
+                        title: "Flaeche einzeichnen",
+                        displayClass: "olControlDrawFeaturePolygon",
+                        multi: true
+                    }
+                );
+                var edit = new OpenLayers.Control.ModifyFeature(vlayer, {
+                    title: "Fläche ändern",
+                    displayClass: "olControlModifyFeature"
+                });
+                var save = new OpenLayers.Control.Button({
+                    title: "Speichern",
+                    trigger: function() {
+                        if(edit.feature) {
+                            edit.selectControl.unselectAll();
+                        }
+                        saveStrategy.save();
+                    },
+                    displayClass: "olControlSaveFeatures"
+                });
+            
+                panel.addControls([save, edit, draw]);
+                map.addControl(panel);
+    
+                map.setCenter(new OpenLayers.LonLat(lon, lat).transform(ll, merc), zoom);
+            }
+        </script>
+</head>
+<body onload="init()">
+    <div id="map">
+        <div id="headline"><h1 id="title">Green flask map</h1></div>
+    </div>
+</body>
+</html>
